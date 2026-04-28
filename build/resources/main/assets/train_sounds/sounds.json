@@ -1,0 +1,19 @@
+{
+  "motor_hum": {
+    "category": "blocks",
+    "subtitle": "subtitles.train_sounds.motor_hum",
+    "sounds": [
+      {
+        "name": "train_sounds:motor_hum",
+        "stream": true
+      }
+    ]
+  },
+  "track_clack": {
+    "category": "neutral",
+    "subtitle": "subtitles.train_sounds.track_clack",
+    "sounds": [
+      { "name": "train_sounds:track_clack" }
+    ]
+  }
+}

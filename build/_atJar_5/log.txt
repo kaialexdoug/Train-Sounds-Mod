@@ -1,0 +1,7 @@
+Java Launcher: C:\Users\SuXingCyuPC\.gradle\jdks\eclipse_adoptium-17-amd64-windows\jdk-17.0.18+8\bin\java.exe
+Arguments: '--inJar, C:\Users\SuXingCyuPC\.gradle\caches\forge_gradle\minecraft_user_repo\net\minecraftforge\forge\1.20.1-47.1.47\forge-1.20.1-47.1.47-injected.jar, --outJar, C:\Users\SuXingCyuPC\.gradle\caches\forge_gradle\minecraft_user_repo\net\minecraftforge\forge\1.20.1-47.1.47_mapped_official_1.20.1\forge-1.20.1-47.1.47_mapped_official_1.20.1.jar, --logFile, accesstransform.log, --atFile, C:\Users\SuXingCyuPC\IdeaProjects\train_sounds\build\_atJar_5\parent_at.cfg'
+Classpath:
+ - C:\Users\SuXingCyuPC\.gradle\caches\forge_gradle\maven_downloader\net\minecraftforge\accesstransformers\8.2.14\accesstransformers-8.2.14-fatjar.jar
+Working directory: C:\Users\SuXingCyuPC\IdeaProjects\train_sounds\build\_atJar_5
+Main class: net.minecraftforge.accesstransformer.TransformerProcessor
+====================================
