@@ -5,7 +5,8 @@
     "sounds": [
       {
         "name": "train_sounds:motor_hum",
-        "stream": true
+        "stream": true,
+        "attenuation_distance": 64
       }
     ]
   },

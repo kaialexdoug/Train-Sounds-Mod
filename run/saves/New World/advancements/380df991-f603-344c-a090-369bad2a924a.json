@@ -191,5 +191,23 @@
     },
     "done": true
   },
+  "create:train_roadkill": {
+    "criteria": {
+      "0": "2026-05-12 20:59:32 +0900"
+    },
+    "done": true
+  },
+  "create:recipes/misc/crafting/appliances/schedule_clear": {
+    "criteria": {
+      "has_item": "2026-05-12 21:17:09 +0900"
+    },
+    "done": true
+  },
+  "create:conductor": {
+    "criteria": {
+      "0": "2026-05-12 21:17:23 +0900"
+    },
+    "done": true
+  },
   "DataVersion": 3465
 }

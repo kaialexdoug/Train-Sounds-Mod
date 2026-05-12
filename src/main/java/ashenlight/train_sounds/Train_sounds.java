@@ -8,6 +8,8 @@ import com.mojang.logging.LogUtils;
 import com.simibubi.create.content.trains.entity.CarriageContraptionEntity;
 import com.sun.jna.platform.win32.WinBase;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.resources.sounds.EntityBoundSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
@@ -37,6 +39,7 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.registries.DeferredRegister;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
+import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import org.slf4j.Logger;
 
 // The value here should match an entry in the META-INF/mods.toml file
@@ -134,10 +137,105 @@ public class Train_sounds {
     public static final RegistryObject<SoundEvent> MOTOR_HUM = SOUNDS.register("motor_hum",
             () -> SoundEvent.createVariableRangeEvent(new ResourceLocation(MODID, "motor_hum")));
 
-    private static final Map<Integer, Integer> tickCounters = new HashMap<>();
-    // This is the "Update" part of your mod
+    public static class EngineSoundInstance extends EntityBoundSoundInstance {
+
+        private final CarriageContraptionEntity carriage;
+
+        // TARGET is where we want the volume to be
+        // this.volume creeps toward it each tick creating the fade effect
+        private float targetVolume = 0.0f;
+        private static final float MAX_VOLUME = 0.3f;  // adjust to taste
+        private static final float FADE_SPEED = 0.02f; // higher = faster fade
+
+        private double lastX;
+        private double lastZ;
+        private double actualMovement;
+
+        private boolean manualStopped = false;
+
+        private float currentPitch = 0.8f;
+        private static final float PITCH_SMOOTH = 0.1f; // lower = smoother but slower;
+
+        public EngineSoundInstance(CarriageContraptionEntity carriage, SoundEvent sound) {
+            super(sound, SoundSource.BLOCKS, 1.0f, 1.0f, carriage, 0L);
+            this.relative = false;
+            this.carriage = carriage;
+            this.looping = true;
+            this.attenuation = Attenuation.LINEAR;
+            this.volume = 0.01f; // small but non-zero so sound manager doesn't discard it
+
+            this.lastX = carriage.getX();
+            this.lastZ = carriage.getZ();
+            this.actualMovement = 0;
+
+        }
+
+        @Override
+        public void tick() {
+            System.out.println("Sound position: " + this.x + " " + this.y + " " + this.z);
+            System.out.println("Carriage position: " + carriage.getX() + " " + carriage.getY() + " " + carriage.getZ());
+
+            if (!carriage.isAlive()) {
+                this.stop();
+                return;
+            }
+
+            // Get the current position this tick
+            double currentX = carriage.getX();
+            double currentZ = carriage.getZ();
+
+            this.actualMovement = Math.sqrt(
+                    Math.pow(currentX - lastX, 2) + Math.pow(currentZ - lastZ, 2)
+            );
+
+            lastX = currentX;
+            lastZ = currentZ;
+
+            if (this.actualMovement <= 0.001) {
+                // Train didn't physically move this tick — fade out
+                targetVolume = 0.0f;
+                // Once fully silent, stop the instance cleanly
+                if (this.volume <= 0.015f) {
+                    this.stop();
+                    this.manualStopped = true;
+                    return;
+                }
+            } else {
+                // Train moving — fade in
+                targetVolume = MAX_VOLUME;
+
+                this.x = currentX;
+                this.y = carriage.getY();
+                this.z = currentZ;
+
+                float targetPitch = (float) Math.min(0.8f + actualMovement * 0.5f, 2.0f);
+                currentPitch += (targetPitch - currentPitch) * PITCH_SMOOTH;
+                this.pitch = currentPitch;
+            }
+
+            // Nudge volume toward target each tick — this creates the smooth fade
+            if (this.volume < targetVolume) {
+                this.volume = Math.min(this.volume + FADE_SPEED, targetVolume);
+            } else if (this.volume > targetVolume) {
+                this.volume = Math.max(this.volume - FADE_SPEED, targetVolume);
+            }
+        }
+
+        public boolean isMoving() {
+            return this.actualMovement > 0;
+        }
+
+        public boolean hasStopped() {
+            return this.manualStopped;
+        }
+    }
+
+        // This is the "Update" part of your mod
     @Mod.EventBusSubscriber(modid = MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
     public static class TrainSoundEventHandler {
+
+        private static final Map<Integer, EngineSoundInstance> activeSounds = new HashMap<>();
+        private static final Map<Integer, double[]> lastPositions = new HashMap<>();
 
         @SubscribeEvent
         public static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -148,33 +246,46 @@ public class Train_sounds {
 
                 mc.level.entitiesForRendering().forEach(entity -> {
                     if (entity instanceof CarriageContraptionEntity carriage) {
-                        double speed = carriage.getCarriage().train.speed;
+
+//                        Minecraft.getInstance().getSoundManager().stop(
+//                                new ResourceLocation("create", "steam"), SoundSource.NEUTRAL
+//                        );
                         int id = entity.getId();
 
-                        int tickCount = tickCounters.getOrDefault(id, 0);
-                        tickCount++;
-                        tickCounters.put(id, tickCount);
+                        double currentX = carriage.getX();
+                        double currentZ = carriage.getZ();
 
-                        if (Math.abs(speed) > 0.01) {
-                            Minecraft.getInstance().getSoundManager().stop(
-                                    new ResourceLocation("create", "steam"), SoundSource.NEUTRAL
+                        double[] lastPos = lastPositions.getOrDefault(id, new double[]{currentX, currentZ});
+                        double movement = Math.sqrt(
+                                Math.pow(currentX - lastPos[0], 2) +
+                                        Math.pow(currentZ - lastPos[1], 2)
+                        );
+
+                        lastPositions.put(id, new double[]{currentX, currentZ});
+
+                        // Now use movement as the gate instead of train.speed
+                        if (!activeSounds.containsKey(id) && movement > 0.001) {
+                            EngineSoundInstance sound = new EngineSoundInstance(
+                                    carriage, Train_sounds.MOTOR_HUM.get()
                             );
+                            mc.getSoundManager().play(sound);
+                            activeSounds.put(id, sound);
+                        }
 
-                            if (tickCount % 200 == 0) {
-                                mc.level.playLocalSound(
-                                        entity.getX(), entity.getY(), entity.getZ(),
-                                        Train_sounds.MOTOR_HUM.get(),
-                                        SoundSource.BLOCKS, 1.0f, 1.0f, false
-                                );
-                            } else {
-                                tickCounters.remove(id);
-                                tickCount = 0;
+                        // Check if there's an existing sound for this carriage
+                        EngineSoundInstance existingSound = activeSounds.get(id);
+                        if (existingSound != null) {
+                            if (existingSound.hasStopped() && !existingSound.isMoving()) {
+                                activeSounds.remove(id);
                             }
+                        }
+
+                        if (!carriage.isAlive()) {
+                            activeSounds.remove(id);
                         }
                     }
                 });
             }
         }
     }
-
 }
